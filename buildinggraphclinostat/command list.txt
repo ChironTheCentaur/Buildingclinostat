@@ -1,0 +1,8 @@
+sudo apt update
+sudo apt install python3
+sudo apt install python3-pip
+sudo apt-get install -y i2c-tools
+sudo pip3 install adafruit-circuitpython-motorkit
+sudo pip3 install sparkfun-qwiic-icm20948
+sudo pip3 install FaBo9Axis_MPU9250
+sudo pip3 install matplotlib

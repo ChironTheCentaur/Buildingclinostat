@@ -1,0 +1,217 @@
+#code by Spencer Lowery & Sky Niedzielski 2023
+
+from datetime import datetime
+from tkinter import *
+import time
+import motorControl
+import numpy as np
+from matplotlib import pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+# Initialize variables to store data
+time_data = []
+gravity_data = []
+
+# Create a figure and axis
+fig, ax = plt.subplots()
+line, = ax.plot([], [], lw=2)
+
+class GravitySystem:
+    def __init__(self):
+        self.gAvg = 0
+        self.xTot = 0  # Initialize xTot
+        self.yTot = 0  # Initialize yTot
+        self.zTot = 0  # Initialize zTot
+        self.xAvg = 0
+        self.yAvg = 0
+        self.zAvg = 0
+
+    def update_g_avg(self, accel):
+        self.xTot += accel['x']
+        self.yTot += accel['y']
+        self.zTot += accel['z']
+        
+        self.xAvg = self.xTot / loop
+        self.yAvg = self.yTot / loop
+        self.zAvg = self.zTot / loop
+        self.gAvg = np.sqrt((self.xAvg**2) + (self.yAvg**2) + (self.zAvg**2))
+
+        logFile.write(f"{loop}, {accel['x']}, {accel['y']}, {accel['z']}, {self.xAvg}, {self.yAvg}, {self.zAvg}, {self.gAvg}\n")
+
+
+    def gravityRun(self):
+        startTime = time.time()
+        rtime = self.runTime  
+
+        while (float(time.time() - startTime) < rtime) and not self.shutdown:
+            try:
+                accel = accelRom.readAccel()
+                self.update_g_avg(accel)
+
+                loop += 1
+
+            except:
+                logFile.write("Unable to get data from accelerometer.\n")
+                accelError += 1
+                pass
+                
+def init():
+    line.set_data([], [])
+    return line,
+
+def startAnimation(gravity_system, start_time):
+    def animate(i):
+        current_time = time.time()
+
+        time_data.append(current_time)
+        gravity_data.append(gravity_system.gAvg)
+
+        line.set_data(time_data, gravity_data)
+        ax.relim()
+        ax.autoscale_view()
+
+        elapsed_time = (datetime.now() - start_time).total_seconds()
+        remaining_time = gravity_system.runTime - elapsed_time
+        plt.title(f'Gravity Tracking\nTime Remaining: {remaining_time:.2f} seconds')
+
+        return line
+
+    ani = FuncAnimation(fig, animate, init_func=init, interval=1000)  # Update every 1 second
+    plt.show()
+
+def startSequence():
+
+    start_time = datetime.now()  # Calculate the start time
+    sys.setup(gInput.getdouble(gInput.get()), tInput.getdouble(tInput.get()))
+    sys.run()
+
+    startAnimation(sys, start_time)
+    #check input values
+    #start thread
+    sys.setup(gInput.getdouble(gInput.get()), tInput.getdouble(tInput.get()))
+    sys.run()
+    #hide main screen open the secondary
+    startTime = time.time()
+    setupFrame.pack_forget()
+    rTime(startTime)
+    runFrame.pack()
+    gUpdate()
+    return
+
+def eStop():
+    sys.stop()
+    runFrame.pack_forget()
+    setupFrame.pack()
+
+def rTime(sTime):
+    tString = '{:.2f}'.format(time.time() - sTime)
+    tLbl.config(text=tString)
+    if(sys.rThread.is_alive()):
+        tLbl.after(1000,rTime, sTime)
+    else:
+        eStop()
+
+def gUpdate():
+    gString = round(sys.gAvg,4)
+    gLbl.config(text=gString)
+    if(sys.rThread.is_alive()):
+        gLbl.after(1000,gUpdate)
+
+sys = motorControl.gravitySystem()
+
+#window setup
+root = Tk()
+root.title("3D Clinostat")
+root.option_add('*tearOff', FALSE)
+root.minsize(400,300)
+
+#contains all of the setup data
+setupFrame = Frame(root)
+setupFrame.pack()
+
+#menu bar
+mBar = Menu(root)
+mFile = Menu(mBar)
+mBar.add_cascade(menu=mFile, label="File")
+
+#Sequence Start Button
+startSequenceButton = Button(setupFrame, text = "Start", command=startSequence)
+startSequenceButton.grid(row = 20, column = 2)
+
+#Gravity Input
+gInputFrame = LabelFrame(setupFrame, text="Desired Gravity(0-1)")
+gInputFrame.grid(row=0, column=0, sticky=W)
+gInput = Entry(gInputFrame, width=5, justify=RIGHT)
+gInput.pack()
+
+#Time Input
+tInputFrame = LabelFrame(setupFrame, text="Experiment Time(hours)")
+tInputFrame.grid(row=1, column=0, sticky=W)
+tInput = Entry(tInputFrame, width=5, justify=RIGHT)
+tInput.pack()
+
+#Mechanical loading delay time Input
+dInputFrame = LabelFrame(setupFrame, text="Delay Time(Minutes)")
+dInputFrame.grid(row=2, column=0, sticky=W)
+dInput = Entry(dInputFrame, width=5, justify=RIGHT)
+dInput.pack()
+
+#Homing device controlls
+homeFrame = LabelFrame(setupFrame, text="Homing")
+homeFrame.grid(row=5, column=0)
+
+#Up button
+homeUp = Button(homeFrame, text = '\u25B2', command=sys.rForward, repeatdelay=100, repeatinterval=100)
+homeUp.grid(row = 0, column=2)
+
+#Down button
+homeDown = Button(homeFrame, text = '\u25BC', command=sys.rBackward, repeatdelay=100, repeatinterval=100)
+homeDown.grid(row = 3, column=2)
+
+#Left button
+homeLeft = Button(homeFrame, text = '\u25C0', command=sys.rLeft, repeatdelay=100, repeatinterval=100)
+homeLeft.grid(row = 2, column=1)
+
+#Right button
+homeRight = Button(homeFrame, text = '\u25B6', command=sys.rRight, repeatdelay=100, repeatinterval=100)
+homeRight.grid(row = 2, column=3)
+
+#mechanical loading configuration frame
+mLoadFrame = LabelFrame(setupFrame, text="Mechanical Loading")
+#mLoadFrame.grid(row=0, rowspan=6, column=3)
+
+chamber1Lebel = Label(mLoadFrame, text="Chamber 1")
+chamber1Lebel.grid(row=0,column=0)
+
+chamber2Lebel = Label(mLoadFrame, text="Chamber 2")
+chamber2Lebel.grid(row=1,column=0)
+
+chamber3Lebel = Label(mLoadFrame, text="Chamber 3")
+chamber3Lebel.grid(row=2,column=0)
+
+chamber4Lebel = Label(mLoadFrame, text="Chamber 4")
+chamber4Lebel.grid(row=3,column=0)
+
+chamber5Lebel = Label(mLoadFrame, text="Chamber 5")
+chamber5Lebel.grid(row=4,column=0)
+
+chamber6Lebel = Label(mLoadFrame, text="Chamber 6")
+chamber6Lebel.grid(row=5,column=0)
+
+runFrame = Frame(root)
+
+tLblFrame = LabelFrame(runFrame, text="Running Time")
+tLblFrame.pack()
+tLbl = Label(tLblFrame)
+tLbl.pack()
+
+gLblFrame = LabelFrame(runFrame, text="Gravity")
+gLblFrame.pack()
+gLbl = Label(gLblFrame)
+gLbl.pack()
+
+stopSequenceButton = Button(runFrame, text = "Stop", command=eStop)
+stopSequenceButton.pack()
+
+root.config(menu=mBar)
+root.mainloop()
